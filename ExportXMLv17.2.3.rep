@@ -1,0 +1,969 @@
+// XML Export V3
+// Changes Log
+// Added Central File Handling + Added Automated Repairing of File Paths
+// Allow Other Scripts (PLP) to Call XML Export Centralisation
+// Changed Handing so that it is represented in 1 Field and not 2
+// Changed Plinths so that they are not automatically Optimised
+
+#include "ToolsIni.rep";
+
+
+global TString globalExportPath ("");
+extend TRoom
+{
+	TBoolean Main();
+	TBoolean LaunchXMLExport(TString strINI);
+	TBoolean LaunchFusion2MAXERP(TString strINI);
+	TString XMLFixAllReserved(TString theString);
+	TString XMLFixReserved(TString theString, TString strReplace, TString strSubstitution);
+	TBoolean XMLAddArray(TString strTag, TString [] strReturn, TString [] strInput);
+	TBoolean XMLExport(TString [] strFileInfo, TString strVersion);
+	TBoolean GetInfoCustomer(TString [] strCustomer);
+	TBoolean GetInfoCatalogues(TString [] strCatalogues);
+	TBoolean GetInfoDLTs(TString [] strDLT, TCatRef theCat);
+	TBoolean GetInfoDLTItems(TString [] strDLT, TDLTBlock theDLTBlock);
+	TBoolean LoadItemsByStyle(TString [] strUnitInfo,TDLTBlock theDLTBlock);
+	TInteger[] UnitParameterList(TRoomObj theObj);
+	TString[] GetParameterInfo(TRoomObj theObj, TInteger [] intParamterList);
+	TBoolean LoadInfoObject(TString [] strObject, TRoomObj theObject);
+	TBoolean LoadInfoParameters(TString [] strObject, TRoomObj theObject);
+	TBoolean LoadOptimizedObject (TString [] strObject, TString OptimizedObjectString);
+	TString GetUnitParmResolve(TRoomObj theObj,TInteger [] theParmList,TInteger intCurVal);
+	TBoolean CheckOptimise(TRoomObj theObj);
+	TBoolean ExportOptimisedUnits(TRoomObj theObj,TInteger intObjNo, TString [] strOptimizedItems);
+	TInteger OptimisedLength(TRoomObj theObj);
+	TString ReturnString (TString [] theArray, TString theString, TInteger thePosition);
+	TString [] DeConcact(TString theString, TString delimString);
+	TString GenerateString(TString [] theUnitInfo);
+	TBoolean WriteArrayString(TString [] theString, TString strExportPath);
+	TString[] GetInfoRoom(TString [] strRoom);
+	TInteger RoundUp(TFloat value);
+	TInteger SearchArrayFor (TString [] theArray, TString theString, TInteger thePosition);
+
+	TBoolean	GetHTTPBrowserPath		(TString pathBrowser, TString pathExtension);
+	TBoolean	LaunchHTTPBrowser		(TString pathBrowser, TString pathExtension , TString pathBrowserInstruction);
+
+	TString		ReplaceChar (TString theString, TString theChar, TString theReplacementChar );
+	TBoolean	TRoomObjSubItemFound (TRoomObj theObject, TString theOrderCodeMatch);
+	TString		TRoomObjSetSeenSideOption	(TRoomObj theObject);
+}
+
+TBoolean TRoom::Main()
+{
+	TString strINI ("Maxima.ini");
+	LaunchXMLExport (strINI);
+	strINI := ("Maxima.ini");
+	LaunchFusion2MAXERP (strINI);
+	return kTrue;
+}
+
+TBoolean TRoom::LaunchXMLExport (TString strINI)
+{
+	if (LoadFile(strINI)) then
+	{
+		TString strSection ("[XML Export]");
+		TString strLocationXML ("Path");
+		TString strLocationOptimise ("TempPath");
+		TFileSpec tfsINI (strINI);
+		if (not FileGet (tfsINI,strSection,strLocationXML,"=","[",1)) then
+		{
+			TString strDefault();
+			TFileSpec tfsTemp();
+			tfsTemp := kSystem <- GetUserDocumentsFolder();
+			strDefault := tfsTemp <- GetFullFileName();
+			FileAutoRepair (tfsINI,"Path","Path = ", strSection, strDefault + "export.xml");
+			FileGet (tfsINI,strSection,strLocationXML,"=","[",1);
+		}
+		if (not FileGet (tfsINI,strSection,strLocationOptimise,"=","[",1)) then
+		{
+			TString strDefault();
+			TFileSpec tfsTemp();
+			tfsTemp := kSystem <- GetUserDocumentsFolder();
+			strDefault := tfsTemp <- GetFullFileName();
+			FileAutoRepair (tfsINI,"Path","TempPath = ",strSection, strDefault+ "Optimise.opt");
+			FileGet (tfsINI,strSection,strLocationOptimise,"=","[",1);
+		}
+
+		TString [] strRoomInfo();
+		XMLExport (strRoomInfo,"Version: 3.1");
+		LoadStringSection (strLocationXML,"=",2);
+		TString strSpeechMark();
+		strSpeechMark <- Char (34);
+		strLocationXML := strLocationXML <- StripChar (strSpeechMark);
+		strLocationXML <- DeWhiteSpace();
+		WriteArrayString (strRoomInfo, strLocationXML);
+
+	}
+	else
+	{
+		OK("Error Ini File Missing and Unable To Create New File in: " + strINI);
+	}
+	return kTrue;
+}
+
+
+TBoolean TRoom::LaunchFusion2MAXERP (TString strINI)
+{
+	if (LoadFile(strINI)) then
+	{
+		TFileSpec tfsINI (strINI);
+		TString strSection ("[MaxERP]");
+		TString strExportPath ("Path");
+		TString tempLocation ("Path");
+
+		if (not FileGet (tfsINI,strSection,strExportPath,"=","[",1)) then
+		{
+			OK("Please Input the MaXERP Location in your Maxima Ini File");
+			FileGet (tfsINI,"[MaxERP]",strExportPath,"=","[",1);
+
+		}
+		strSection := ("[XML Export]");
+		if (not FileGet (tfsINI,strSection,tempLocation,"=","[",1)) then
+		{
+		}
+		//[2012/05/16 09:44:50 AM] Brendon Page: http://ks.maxerp.co.za/oos.aspx?importfile=C:\cake.xml
+		TString strSpeachMark();
+		strSpeachMark<-Char( 34 );
+		TString strCommandLine();
+		LoadStringSection (strExportPath,"=",2);
+		LoadStringSection (tempLocation,"=",2);
+		TBoolean blnSuccess (kFalse);
+		TString pathBrowser ();
+		TString pathExtension ();
+		TString pathBrowserInstruction 	(strExportPath);
+		TString pathBrowserInstructionExtension	(globalExportPath);
+		TString space ();
+		space.Char(32);
+		pathBrowserInstructionExtension := ReplaceChar (pathBrowserInstructionExtension,space,"%20");
+		GetHTTPBrowserPath 			(pathBrowser,pathExtension);
+		LaunchHTTPBrowser		 (pathBrowser, pathExtension , pathBrowserInstruction+"oos.aspx?importfile="+pathBrowserInstructionExtension);
+	}
+	else
+	{
+		//OK("Error Ini File Missing and Unable To Create New File in: " + strINI);
+	}
+	return kTrue;
+}
+
+//**********************************************************************
+//
+//
+//
+//**********************************************************************
+TString TRoom::XMLFixAllReserved (TString theString)
+{
+	TString strQuote ("");
+	strQuote <- Char( 34 );
+	theString := XMLFixReserved (theString,"&","&amp;");
+	theString := XMLFixReserved (theString,"<","&lt;");
+	theString := XMLFixReserved (theString,">","&gt;");
+	theString := XMLFixReserved (theString,strQuote,"&quot;");
+	theString := XMLFixReserved (theString,"'","&apos;");
+	return theString;
+}
+
+//**********************************************************************
+//
+//
+//
+//**********************************************************************
+TString	TRoom:: XMLFixReserved (TString theString, TString strReplace, TString strSubstitution)
+{
+	TString strReturn();
+	TInteger countPos();
+	for (countPos := 1 ;countPos <= theString <- StringLength(); countPos +=1)
+	{
+		TString tempString := theString <- MidString (countPos,1);
+		if (tempString == strReplace) then
+		{
+			strReturn := strReturn + strSubstitution;
+		}
+		else
+		{
+			strReturn := strReturn + tempString;
+		}
+	}
+	return strReturn;
+}
+
+//**********************************************************************
+//
+//
+//
+//**********************************************************************
+TBoolean TRoom::XMLAddArray (TString strTag, TString [] strReturn, TString [] strInput)
+{
+	TInteger intCurLine();
+	TInteger intMaxLines();
+	intMaxLines := strInput <- Count();
+	for (intCurLine := 1;intCurLine <= intMaxLines; intCurLine += 1)
+	{
+		strReturn <- AddItem ("<" + strTag+TString (intCurLine)+ ">" + XMLFixAllReserved(strInput [intCurLine])+ "</" + strTag+TString (intCurLine)+ ">");
+	}
+	return kTrue;
+}
+
+//**********************************************************************
+//
+// Creates an export string array in XML Format
+//
+//**********************************************************************
+TBoolean TRoom::XMLExport (TString [] strFileInfo, TString strVersion)
+{
+	TBoolean blnSuccess (kTrue);
+	strFileInfo <- AddItem ("<XMLExport>");
+	strFileInfo <- AddItem ("<Version>");
+	strFileInfo <- AddItem (strVersion);
+	strFileInfo <- AddItem ("</Version>");
+
+	GetInfoRoom (strFileInfo);
+	GetInfoCustomer(strFileInfo);
+	GetInfoCatalogues(strFileInfo);
+
+	strFileInfo <- AddItem ("</XMLExport>");
+	return blnSuccess;
+}
+
+//**********************************************************************
+//
+//
+//
+//**********************************************************************
+TBoolean TRoom::GetInfoRoom (TString [] strRoom)
+{
+	strRoom <- AddItem ("<RoomInfo>");
+	strRoom <- AddItem ("<RoomTitle> " + XMLFixAllReserved(GetRoomTitle())+ "</RoomTitle>");
+	strRoom <- AddItem ("<DesignerName>" + XMLFixAllReserved(GetCustomerPlanner())+ "</DesignerName>");
+	strRoom <- AddItem ("</RoomInfo>");
+	return kTrue;
+}
+
+//**********************************************************************
+//
+//
+//
+//**********************************************************************
+TBoolean TRoom::GetInfoCustomer (TString [] strCustomer) //Adds All Customer Information
+{
+	TString [] strCustomerAddress();
+	TString [] strDeliveryAddress();
+	strCustomerAddress := GetCustomerAddress();
+	strDeliveryAddress := GetDeliveryAddress();
+	strCustomer <- AddItem ("<Customer>");
+	strCustomer <- AddItem ("<CustomerName> " + XMLFixAllReserved(GetCustomerName())+ " </CustomerName>");
+	strCustomer <- AddItem ("<CustomerReference> " + XMLFixAllReserved(GetCustomerRef())+ " </CustomerReference>");
+	XMLAddArray ("CustomerAddress",strCustomer,strCustomerAddress);
+	XMLAddArray ("DeliveryAddress",strCustomer,strDeliveryAddress);
+	strCustomer <- AddItem ("</Customer>");
+	return kTrue;
+}
+
+//**********************************************************************
+//
+// Get the info for all the catatlogues in the design
+//
+//**********************************************************************
+TBoolean TRoom::GetInfoCatalogues (TString [] strCatalogues)
+{
+	TInteger intMaxLoop (CountCatRefs());
+	TInteger intCurLoop();
+	for (intCurLoop:=1;intCurLoop <= intMaxLoop; intCurLoop +=1)
+	{
+		TCatRef theCat;
+		theCat &= GetCatRef (intCurLoop);
+		strCatalogues <- AddItem ("<Catalogue>");
+		strCatalogues <- AddItem ("<CatalogueName>" + XMLFixAllReserved(theCat <- GetCatName())+ " </CatalogueName>");
+		GetInfoDLTs (strCatalogues, theCat);	// Gets All DLT Information
+		strCatalogues <- AddItem ("</Catalogue>");
+	}
+	return kTrue;
+}
+
+//**********************************************************************
+//
+// Get the info for all the DLT's in the catatlogues in the design
+//
+//**********************************************************************
+TBoolean TRoom::GetInfoDLTs (TString [] strDLT, TCatRef theCat)
+{
+	TInteger intCurLoop();
+	TInteger intMaxLoop (theCat <- CountDLTRefs());
+	TDLTBlock theDLTBlock;
+	strDLT <- AddItem ("<UnitInfo>");
+	for (intCurLoop := 1; intCurLoop<=intMaxLoop; intCurLoop +=1)
+	{
+		strDLT <- AddItem ("<DLTInfo>");
+		strDLT <- AddItem ("<DLTNumber>" + TString (intCurLoop)+ "</DLTNumber>");
+		theDLTBlock &= theCat <- GetNthDLTBlockObj (intCurLoop);
+
+		GetInfoDLTItems (strDLT,theDLTBlock);
+		LoadItemsByStyle (strDLT,theDLTBlock);
+
+		strDLT <- AddItem ("</DLTInfo>");
+	}
+	strDLT <- AddItem ("</UnitInfo>");
+	return kTrue;
+}
+
+//**********************************************************************
+//
+// Gets the infor of the DLT items to XML
+//
+//**********************************************************************
+TBoolean
+TRoom::GetInfoDLTItems (TString [] strDLT, TDLTBlock theDLTBlock)
+{
+TInteger intCurLoop ();
+TInteger intMaxLoop (theDLTBlock <- CountDLTEntries ());
+for (intCurLoop := 1; intCurLoop <= intMaxLoop; intCurLoop +=1 )
+	{
+		TInteger intMatLoop ();
+		strDLT <- AddItem ("<Selection>");
+		strDLT <- AddItem ("<Type>"+XMLFixAllReserved(theDLTBlock <- GetNthDLTTypeDescription(intCurLoop))+"</Type>");
+		strDLT <- AddItem ("<Selected>"+XMLFixAllReserved(theDLTBlock <- GetNthDLTEntryName(intCurLoop))+"</Selected>");
+		strDLT.AddItem ("<MaterialList>");		// Addition to Allow for Material Colours that have been set in DLT BLock
+		for (intMatLoop:=1;intMatLoop<=theDLTBlock.CountColoursForNthDLTType(intCurLoop);intMatLoop+=1)
+		{
+			strDLT.AddItem ("<Material>");
+			strDLT.AddItem ("<Name>"+XMLFixAllReserved(theDLTBlock.GetNthColourTypeForNthDLTType(intMatLoop,intCurLoop))+"</Name>");
+			strDLT.AddItem ("<Colour>"+XMLFixAllReserved(theDLTBlock.GetNthColourDescForNthDLTType(intMatLoop,intCurLoop))+"</Colour>");
+			strDLT.AddItem ("</Material>");
+		}
+	strDLT.AddItem ("</MaterialList>");
+	strDLT <- AddItem ("</Selection>");
+	}
+return kTrue;
+}
+
+//**********************************************************************
+//
+// Get the info for an item based on its style
+//
+//**********************************************************************
+TBoolean TRoom::LoadItemsByStyle (TString [] strUnitInfo,TDLTBlock theDLTBlock)
+{
+	strUnitInfo <-AddItem ("<UnitsList>");
+	TString [] strOptimizedItems();
+	TInteger intLoopMax (CountObjectsByDLT(theDLTBlock));
+	TInteger intLoopCur();
+	TInteger intPosCount();
+	intPosCount := 0;
+
+	for (intLoopCur :=1; intLoopCur <= intLoopMax; intLoopCur +=1)
+	{
+		TRoomObj theObject;
+		theObject &= GetNthObjectByDLT (intLoopCur,theDLTBlock);
+		//if (not theObject <- IsSubItem()) then
+		//{
+			if (not CheckOptimise (theObject)) then
+			{
+				intPosCount+=1;
+				strUnitInfo <- AddItem ("<Unit>");
+				strUnitInfo <- AddItem ("<UnitNo> " + TString(intPosCount) + " </UnitNo>");
+				LoadInfoObject (strUnitInfo, theObject);
+				strUnitInfo <- AddItem ("</Unit>");
+			}
+			else
+			{
+				ExportOptimisedUnits(theObject, intLoopCur, strOptimizedItems);
+			}
+		//}
+	}
+	//
+	// Add the optimized items at the end of the unit list
+	//
+	TInteger countPos();
+	for (countPos:=1 ;countPos<=strOptimizedItems <- Count();countPos +=1)
+	{
+		intPosCount+=1;
+		//
+		// Get the infor for the unit seperated
+		//
+		strUnitInfo <- AddItem ("<Unit>");
+		strUnitInfo <- AddItem ("<UnitNo> " + TString(intPosCount) + " </UnitNo>");
+		LoadOptimizedObject(strUnitInfo, strOptimizedItems[countPos]);
+		strUnitInfo <- AddItem ("</Unit>");
+	}
+
+	strUnitInfo <-AddItem ("</UnitsList>");
+	return kTrue;
+}
+
+//**********************************************************************
+//
+// Creates the XML for an object
+//
+//**********************************************************************
+TBoolean TRoom::LoadOptimizedObject (TString [] strObject, TString OptimizedObjectString)
+{
+	TString [] theUnitInfo();
+	TString CalculatedWidth();
+	TInteger MaxHeight();
+	TInteger ActualHeight();
+	TInteger AdjustedQty();
+	TFloat TempFloat();
+
+	theUnitInfo := DeConcact (OptimizedObjectString,",");
+	//
+	// Calc the adjusted width
+	//
+	MaxHeight := TInteger(theUnitInfo[13]);
+	ActualHeight := TInteger(theUnitInfo[10]);
+	TempFloat := TFloat(ActualHeight) * 1.1;		//Wasteage Factor
+	TempFloat := TempFloat / TFloat(MaxHeight);
+	AdjustedQty := RoundUp(TempFloat);
+	//
+	// Add the details
+	//
+	strObject <- AddItem ("<Code> " + theUnitInfo[2] + " </Code>");
+	strObject <- AddItem ("<ItemNo>" + theUnitInfo[3] + "</ItemNo>");
+	strObject <- AddItem ("<AnnotationNo> </AnnotationNo>");
+	strObject <- AddItem ("<UnitQuantity>" + TString(AdjustedQty) + "</UnitQuantity>");
+	strObject <- AddItem ("<GraphicUnit> " + " False" + " </GraphicUnit>");
+	strObject <- AddItem ("<Handing>" + "None" + "</Handing>");
+	strObject <- AddItem ("<Dimensions>");
+	strObject <- AddItem ("<Width> " + TString(MaxHeight) + " </Width>");
+	strObject <- AddItem ("<Depth> " + theUnitInfo[12] + " </Depth>");
+	strObject <- AddItem ("<Height> " + theUnitInfo[12] + " </Height>");
+	strObject <- AddItem ("</Dimensions>");
+
+	return kTrue;
+}
+
+TBoolean
+TRoom::LoadInfoParameters (TString [] strObject, TRoomObj theObject)
+{
+	TInteger [] intParmList ();
+	TString [] strParmInfo ();
+	intParmList &= UnitParameterList (theObject);
+	strParmInfo &= GetParameterInfo (theObject, intParmList);
+
+	TInteger intLoopMax ();
+	TInteger intLoopCur ();
+	intLoopMax := strParmInfo <- Count ();
+	for (intLoopCur := 1; intLoopCur <=intLoopMax; intLoopCur +=1)
+	{
+		strObject <- AddItem (strParmInfo [intLoopCur]);
+	}
+
+	return kTrue;
+}
+
+
+//**********************************************************************
+//
+// Creates the XML for an object
+//
+//**********************************************************************
+TBoolean TRoom::LoadInfoObject (TString [] strObject, TRoomObj theObject)
+{
+	TObjectDimensions theDims;
+	TDist dstWidth();
+	TDist dstDepth();
+	TDist dstHeight();
+
+	strObject <- AddItem ("<Code> " + XMLFixAllReserved (theObject  <- GetOrderCode())+ " </Code>");
+	strObject <- AddItem ("<ItemNo>" + TString (theObject <- GetObjectListPos()) + "</ItemNo>");
+	strObject <- AddItem ("<AnnotationNo>" + TString (theObject <- GetAnnotation()) + "</AnnotationNo>");
+	theDims &= theObject <- GetDimensions();
+	theDims  <- GetOrder (dstWidth, dstDepth, dstHeight);
+	strObject <- AddItem ("<UnitQuantity>" + TString (theObject <- GetObjectQuantity()) + "</UnitQuantity>");
+	if (theObject <- IsGraphicItem()) then
+	{
+		strObject <- AddItem ("<GraphicUnit> " + " True" + " </GraphicUnit>");
+	}
+	else
+	{
+		strObject <- AddItem ("<GraphicUnit> " + " False" + " </GraphicUnit>");
+	}
+
+	// Determine if Object is Left Handed Right Handed or None
+	if (theObject.IsLeftHanded()) then
+	{
+		if ( theObject.IsRightHanded()) then
+		{
+			strObject.AddItem("<Handing>"+ "Both" +"</Handing>");
+		}
+		else
+		{
+			strObject.AddItem("<Handing>"+ "Left" +"</Handing>");
+		}
+	}
+	else
+	{
+		if ( theObject.IsRightHanded()) then
+		{
+			strObject.AddItem("<Handing>"+ "Right" +"</Handing>");
+		}
+		else
+		{
+			strObject.AddItem("<Handing>"+ "None" +"</Handing>");
+		}
+	}
+
+	strObject <- AddItem ("<Dimensions>");
+	strObject <- AddItem ("<Width> " + dstWidth <- GetDistanceAsStr() + " </Width>");
+	strObject <- AddItem ("<Depth> " + dstDepth <- GetDistanceAsStr() + " </Depth>");
+	strObject <- AddItem ("<Height> " + dstHeight <- GetDistanceAsStr() + " </Height>");
+	strObject <- AddItem ("</Dimensions>");
+	strObject <- AddItem ("<Parameters>");
+	LoadInfoParameters (strObject, theObject);
+	strObject <- AddItem ("</Parameters>");
+	strObject.AddItem ("<ExposureOptions>" +TRoomObjSetSeenSideOption(theObject) + "</ExposureOptions>");
+	return kTrue;
+}
+
+
+//**********************************************************************
+//
+// Returns the number of params an object has
+//
+//**********************************************************************
+TInteger [] TRoom::UnitParameterList (TRoomObj theObj)
+{
+	TInteger [] theParmList();
+	TDLTBlock theDlt;
+	theDlt &= (theObj <- GetObjectDLTBlockObj());
+	theParmList &=  theObj <- GetDrawingParameterList (theDlt);
+	return theParmList;
+}
+
+//**********************************************************************
+//
+// Gets the param info of the object passed
+//
+//**********************************************************************
+TString [] TRoom:: GetParameterInfo (TRoomObj theObj, TInteger [] intParamterList)
+{
+	TString [] strReturn();
+	TCatRef theCatRef;
+	TCatalogue theCat;
+	TCatalogue theBaseCat;
+	TParameter theParm;
+	TInteger intMaxReplaceLoop();
+	TInteger intCurReplaceLoop (1);
+	TInteger extraValues();
+	TDist dstVoid();
+	theCatRef &= theObj <- GetObjectsCatRef();
+	theCat &= theCatRef <- GetCat();
+	theBaseCat &= theCatRef <- GetBaseCat();
+	intMaxReplaceLoop := theObj <- CountParameterReplacements();
+
+	for (intCurReplaceLoop := 1; intCurReplaceLoop <= intMaxReplaceLoop; intCurReplaceLoop += 1)
+	{
+		theObj <- GetNthParameterReplacement (intCurReplaceLoop, extraValues,dstVoid);
+		TInteger intAdd (extraValues);
+		intParamterList <- AddItem (intAdd);
+	}
+
+	TInteger intMaxLoop (intParamterList <- Count());
+	TInteger currentVal (1);
+	strReturn <- AddItem ("<ParameterList>");
+	for (currentVal := 1 ;currentVal <= intMaxLoop; currentVal +=1)
+	{
+		TParameter theIndividualParm;
+
+		if (theCat <- ParameterExist (intParamterList [currentVal])) then
+		{
+			theIndividualParm &= theCat <- GetParameter (intParamterList [currentVal]);
+			if (theCat <- ParameterExist(intParamterList [currentVal])) then
+			{
+				if (theIndividualParm <- GetAllowEdit() ) then
+				{
+					strReturn <- AddItem ("<Parameter>");
+					strReturn <- AddItem ("<Code>" + XMLFixAllReserved(theIndividualParm <- GetDescription())+ "</Code>");
+					strReturn <- AddItem ("<Number>" + TString (intParamterList [currentVal])+ "</Number>");
+					strReturn <- AddItem ("<Resolve>" + TString (GetUnitParmResolve(theObj,intParamterList,currentVal))+ "</Resolve>");
+					strReturn <- AddItem ("</Parameter>");
+				}
+			}
+		}
+		else if (theBaseCat <- ParameterExist(intParamterList [currentVal])) then
+		{
+			theIndividualParm &= theBaseCat <- GetParameter (intParamterList [currentVal]);
+			if (theIndividualParm <- GetAllowEdit() ) then
+			{
+				strReturn <- AddItem ("<Parameter>");
+				strReturn <- AddItem ("<Code>" + XMLFixAllReserved(theIndividualParm <- GetDescription())+ "</Code>");
+				strReturn <- AddItem ("<Number>" + TString (intParamterList [currentVal])+ "</Number>");
+				strReturn <- AddItem ("<Resolve>" + TString (GetUnitParmResolve(theObj,intParamterList,currentVal))+ "</Resolve>");
+				strReturn <- AddItem ("</Parameter>");
+			}
+		}
+	}
+	strReturn <- AddItem ("</ParameterList>");
+	return strReturn;
+}
+
+//**********************************************************************
+//
+//
+//
+//**********************************************************************
+TString TRoom::GetUnitParmResolve (TRoomObj theObj,TInteger [] theParmList,TInteger intCurVal)
+{
+	TString strReturn();
+	TDist theParmDistance();
+
+	TId theId;
+	theId &=theObj <- GetSeriesID();
+
+	theParmDistance := theObj <- ResolveParameter(theId,theParmList[intCurVal]);
+	strReturn := theParmDistance <- GetDistanceAsStr();
+
+	return strReturn;
+}
+
+//**********************************************************************
+//
+// Returns True if an item is optimizeable, this is recognized by data
+// under the General Data Block for the item (data 100, true)
+//
+//**********************************************************************
+TBoolean TRoom::CheckOptimise (TRoomObj theObj)
+{
+	if (not theObj<-IsRoomObject()) then
+	{
+		TCUnit theObjCat ;
+		TGenDataBlock theObjDataValues ;
+		theObjCat := theObj <- GetCatUnit();
+		theObjDataValues := theObjCat <- GetGeneralDataBlock();
+		return theObjDataValues <- GetGeneralBoolValue (100);
+	}
+
+	return kFalse;
+}
+
+//**********************************************************************
+//
+// Searches the array for a match
+//
+//**********************************************************************
+TString TRoom::ReturnString (TString [] theArray, TString theString, TInteger thePosition)
+{
+	TString [] theArrayString();
+	TString theFullString();
+
+	TInteger countPos();
+	for (countPos:=1 ;countPos<=theArray <- Count();countPos +=1)
+	{
+		TString tempString();
+		tempString := theArray[countPos];
+		theFullString := tempString;
+		theArrayString := DeConcact (theFullString, ",");
+		if (theArrayString <- Count() >= thePosition) then
+		{
+			if (theArrayString [thePosition] == theString) then
+			{
+				return theFullString;
+			}
+		}
+	}
+	return "Error Condition Not Found";
+}
+
+//********************************************************
+//
+// Gets the details for an optimized item
+//
+//********************************************************
+TBoolean TRoom::ExportOptimisedUnits(TRoomObj theObj,TInteger intObjNo, TString [] strOptimizedItems)
+{
+	TFile theExportFile();
+	TFileSpec theOptimiseFileSpec();
+	TString strMaxLoc ("Maxima.ini"); // Sets the INI File Location to Be Maxima.ini
+	TBoolean blnItemFound (kFalse);
+	TBoolean EOF ();
+	TDist dstWidth();
+	TDist dstDepth();
+	TDist dstHeight();
+	TInteger intUnitNo();
+	TInteger intQuantity();
+	TInteger intObjRef();
+	TString strOrderCode();
+	TString strLinkIndex();
+	TBoolean blnLeftHand();
+	TBoolean blnRightHand();
+	TString strWidthTemp();
+	TString strDepthTemp();
+	TString strHeightTemp();
+	TInteger intMaxLength();
+	TInteger intIndexPos();
+
+	intMaxLength := OptimisedLength (theObj);
+	theObj <- GetSizes (dstWidth, dstDepth, dstHeight);
+	blnLeftHand := theObj <- IsLeftHanded();
+	blnRightHand := theObj <- IsRightHanded();
+	strOrderCode := theObj <- GetOrderCode();
+	intObjRef := theObj <- GetObjectRef();
+	intQuantity := 1;
+	intUnitNo := theObj <- GetObjectListPos();
+	strWidthTemp := dstWidth<-GetDistanceAsStr();
+	strDepthTemp := dstDepth<-GetDistanceAsStr();
+	strHeightTemp := dstHeight<-GetDistanceAsStr();
+	//
+	// Look for a match in the array
+	//
+	if (SearchArrayFor(strOptimizedItems, strOrderCode ,2)>-1) then
+	{
+		if (SearchArrayFor(strOptimizedItems, strHeightTemp,12)>-1) then
+		{
+			intIndexPos := SearchArrayFor(strOptimizedItems, strDepthTemp,11);
+			if (intIndexPos>-1) then
+			{
+				blnItemFound := kTrue;
+			}
+		}
+	}
+	//
+	// If the item is not found, then add as a new item to the temp optimization file
+	//
+	if (blnItemFound == kFalse) then
+	{
+		if (intMaxLength == 0) then
+		{
+			intMaxLength := 2750;
+		}
+		TString [] theUnitInfo();
+		theUnitInfo <- AddItem (TString (intObjNo));
+		theUnitInfo <- AddItem (strOrderCode);
+		theUnitInfo <- AddItem (TString (intObjNo));
+		theUnitInfo <- AddItem (TString (intQuantity));
+		theUnitInfo <- AddItem (TString (blnRightHand));
+		theUnitInfo <- AddItem (TString (blnLeftHand));
+		theUnitInfo <- AddItem ("0");
+		theUnitInfo <- AddItem ("0");
+		theUnitInfo <- AddItem ("0");
+		theUnitInfo <- AddItem (strWidthTemp);
+		theUnitInfo <- AddItem (strDepthTemp);
+		theUnitInfo <- AddItem (strHeightTemp);
+		theUnitInfo <- AddItem (TString (intMaxLength));
+		// Add it to an array
+		strOptimizedItems <- AddItem(GenerateString (theUnitInfo));
+	}
+	else
+	{
+		TString [] theUnitInfo();
+		TString theFullString (ReturnString(strOptimizedItems, strOrderCode ,2));
+		theUnitInfo := DeConcact (theFullString,",");
+		theUnitInfo [10] := TString (TInteger (theUnitInfo [10]) * TInteger(theUnitInfo [4]) + TInteger (strWidthTemp)* intQuantity);
+		theUnitInfo [4] := "1";
+		strOptimizedItems[intIndexPos] := GenerateString (theUnitInfo);
+	}
+	return kTrue;
+}
+
+//********************************************************
+//
+// Returns the optimized length of the item
+//
+//********************************************************
+TInteger TRoom::OptimisedLength (TRoomObj theObj)
+{
+	TCUnit theObjCat ;
+	TGenDataBlock theObjDataValues ;
+	theObjCat := theObj <- GetCatUnit();
+	theObjDataValues := theObj <- GetGeneralDataBlock();
+	theObjDataValues := theObjCat <- GetGeneralDataBlock();
+	return theObjDataValues <- GetGeneralNumValue (100);
+}
+
+//**********************************************************************
+//
+// Returns the rounded up value
+//
+//**********************************************************************
+TInteger TRoom::RoundUp(TFloat value)
+{
+	return TInteger(value + 1.0);
+}
+
+//**********************************************************************
+//
+// Searches an array for a match
+//
+//**********************************************************************
+TInteger TRoom::SearchArrayFor (TString [] theArray, TString theString, TInteger thePosition){
+	TString theFullString();
+	TString [] theArrayString();
+	TInteger countPos();
+	for (countPos:=1 ;countPos<=theArray <- Count();countPos +=1)
+	{
+		TString tempString();
+		tempString := theArray[countPos];
+		theFullString := tempString;
+		theArrayString := DeConcact (theFullString, ",");
+		if (theArrayString <- Count() >= thePosition) then
+		{
+			if (theArrayString [thePosition] == theString) then
+			{
+				return countPos;
+			}
+		}
+	}
+	return -1;
+}
+
+//**********************************************************************
+//
+// Seperates a string into an array of strings by finding the ','
+//
+//**********************************************************************
+TString [] TRoom::DeConcact (TString theString, TString delimString)
+{
+	TString [] theArray();
+	TInteger countPos();
+	TString tempString();
+	TInteger theFirstPoint (1);
+	for (;countPos<=theString <- StringLength();countPos +=1)
+	{
+		TString tempString := theString<-MidString (countPos,1);
+		if (tempString == delimString) then
+		{
+			theArray <- AddItem (theString <- MidString (theFirstPoint,countPos-theFirstPoint));
+			theFirstPoint := countPos+1;
+		}
+	}
+	theArray <- AddItem (theString <- MidString (theFirstPoint,(theString<-StringLength())-theFirstPoint+1));
+	return theArray;
+}
+
+//**********************************************************************
+//
+// Generates a string from an array of strings using the ',' as a seperator
+//
+//**********************************************************************
+TString TRoom::GenerateString (TString [] theUnitInfo)
+{
+	TInteger lCount (1);
+	TString theLine();
+
+	for (lCount :=1; lCount <= theUnitInfo <- Count() ; lCount +=1)
+	{
+		theLine := (theLine + theUnitInfo [lCount]+ ",");
+	}
+	theLine := theLine <- MidString (1,theLine <- StringLength() -1 );
+	return theLine ;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+// File Functions
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+//******************************************************************
+//
+// Writes an array to a textfile
+//
+//******************************************************************
+TBoolean TRoom::WriteArrayString (TString [] theString, TString strExportPath)
+{
+	TFileSpec theFilePath();
+	TFile theFilePointer();
+	TInteger intAllowed();
+	theFilePath<-SetFullFileName(strExportPath);
+	theFilePath.SetFileName(GetRoomTitle(),"xml");
+	theFilePath.SaveFilePrompt ("Please Choose Location to Save MAXERP Export File");
+	globalExportPath:= theFilePath.GetFullFileName();
+	//intAllowed := theFilePath <- SaveFilePrompt ("Browse to Destination");
+	if (theFilePath <- FileExists()) then
+	{
+		//theFilePath<- Remove();
+	}
+	theFilePointer <- NewFile (theFilePath);
+	TInteger intMaxLoop();
+	TInteger intCurLoop();
+	intMaxLoop := theString <- Count() ;
+	for (intCurLoop := 1;intCurLoop <= intMaxLoop; intCurLoop +=1)
+	{
+		theFilePointer <- WriteString (theString [intCurLoop],kTrue);
+	}
+	theFilePointer <- CloseFile();
+	return kTrue;
+}
+
+TBoolean // 1launches the Webbrowser with a command
+TRoom::LaunchHTTPBrowser		(TString pathBrowser, TString pathExtension, TString pathBrowserInstruction)
+{
+	TString delim ();
+	delim.Char (34); // "
+	kSystem.LaunchApplicationEx(pathBrowser+pathExtension + pathBrowserInstruction,kFalse);
+	return kTrue;
+}
+
+TBoolean // Gets the Defualt Browser for http Files
+TRoom::GetHTTPBrowserPath 	(TString pathBrowser, TString pathExtension) // Determine the Defualt Browser Path & Defualt Extension (to place to Place Commands to that Browser)
+{
+	TString delim ();
+	delim.Char (34); // "
+	TRegistry theRegistry();
+	TString pathFull ();
+	pathFull := theRegistry.GetKeyStringValue ("HKEY_CLASSES_ROOT","http\shell\open\command",""); // This command should look up the defualt location for the browser you are using
+	pathBrowser := pathFull.NthDelimitedField (delim,2); // The Path of the Application
+	pathExtension := pathFull.NthDelimitedField (delim,3); // The Path of the commands being passed through
+//	return theRegistry.GetKeyStringValue ("HKEY_CURRENT_USER","Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice","ProgId"); // This is a failed attempt to find out the browser that was being used
+	return kTrue;
+}
+
+TBoolean
+TRoom::TRoomObjSubItemFound (TRoomObj theObject, TString theOrderCodeMatch)
+{
+	TInteger theSubItemsCount ();
+	TInteger loop ();
+	theSubItemsCount:=theObject.CountSubItems(); // Detect if Linked Objects Exist
+	for (loop:=1;loop<=theSubItemsCount;loop+=1)
+	{
+		TRoomObj theSubObject;
+		theSubObject &= theObject.GetNthSubItem(loop);
+		if(theSubObject.GetOrderCode() == theOrderCodeMatch) then
+		{
+			return kTrue;
+		}
+	}
+
+	return kFalse;
+}
+
+
+TString
+TRoom::TRoomObjSetSeenSideOption(TRoomObj theObject)
+{
+	if (theObject.CountSubItems() >0) then
+	{
+		if (TRoomObjSubItemFound(theObject, "Exposed Side Left" )==kTrue) then
+		{
+			if (TRoomObjSubItemFound(theObject,"Exposed Side Right")==kTrue) then
+			{
+				return ("Both");
+			}
+			else
+			{
+				return (" Left");
+			}
+		}
+		else
+		{
+			if (TRoomObjSubItemFound(theObject, "Exposed Side Right")==kTrue) then
+			{
+				return (" Right");
+			}
+		}
+	}
+	return ("  None");
+}
+
+TString
+TRoom::ReplaceChar (TString theString, TString theChar, TString theReplacementChar )
+{
+	TString theNewString ();
+	TInteger loop (1);
+	for(loop:=1 ; loop <= theString.CountDelimitedFields(theChar) ;loop+=1)
+	{
+		TString tempString (theString.NthDelimitedField(theChar,loop));
+		theNewString := theNewString + tempString.StripChar(theChar);
+		if (loop < theString.CountDelimitedFields(theChar)) then
+		{
+			theNewString := theNewString + theReplacementChar;
+		}
+	}
+	return theNewString;
+}

@@ -1,0 +1,66 @@
+extend TRoom
+{
+	TBoolean	Main	();
+
+
+	TBoolean	TRoomObjSubItemFound (TRoomObj theObject, TString theOrderCodeMatch);
+
+	TString		TRoomObjSetSeenSideOption	(TRoomObj theObject);
+}
+
+TBoolean
+TRoom::Main	()
+{
+	TRoomObj theObject;
+	theObject &= GetNthObject(7);
+
+	OK(TRoomObjSetSeenSideOption(theObject));
+	return kTrue;
+}
+
+TBoolean
+TRoom::TRoomObjSubItemFound (TRoomObj theObject, TString theOrderCodeMatch)
+{
+	TInteger theSubItemsCount ();
+	TInteger loop ();
+	theSubItemsCount:=theObject.CountSubItems(); // Detect if Linked Objects Exist
+	for (loop:=1;loop<=theSubItemsCount;loop+=1)
+	{
+		TRoomObj theSubObject;
+		theSubObject &= theObject.GetNthSubItem(loop);
+		if(theSubObject.GetUnitName() == theOrderCodeMatch) then
+		{
+			return kTrue;
+		}
+	}
+
+	return kFalse;
+}
+
+
+TString
+TRoom::TRoomObjSetSeenSideOption(TRoomObj theObject)
+{
+	if (theObject.CountSubItems() >0) then
+	{
+		if (TRoomObjSubItemFound(theObject, "SEENSIDELEFT" )==kTrue) then
+		{
+			if (TRoomObjSubItemFound(theObject,"SEENSIDERIGHT")==kTrue) then
+			{
+				return ("Both");
+			}
+			else
+			{
+				return (" Left");
+			}
+		}
+		else
+		{
+			if (TRoomObjSubItemFound(theObject, "SEENSIDERIGHT")==kTrue) then
+			{
+				return (" Right");
+			}
+		}
+	}
+	return ("  None");
+}

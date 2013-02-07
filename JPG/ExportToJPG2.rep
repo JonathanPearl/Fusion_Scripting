@@ -1,0 +1,426 @@
+extend TRoom
+{
+	TBoolean	Main		();	
+	TString []	LoadDLTFromFav	(TFileSpec theFile);
+	TString		GetDltStyleName	(TString [] DLTAll, TInteger nth);
+	TString []	LoadSpecificDLT	(TString [] DLTAll, TInteger nth);
+	TString	 []	GetStringEntry		(TString [] theDLTString , TInteger position);
+	TBoolean	UpdateUnitDLTBlock	(TDLTBlock theDLTBlock);
+	TDLTBlock	SetDefualtDLTStyle	(TInteger sectionNo , TInteger optionNo);
+	TBoolean	RunFavoriteStyleListing		(TString [] optionsDLTAll ,TDLTBlock theDLTBLock , TInteger nth, TBoolean [] nthViews);
+	TBoolean	LoadDLTStyleIntoPresentation	(TString [] theSpecificDLTStyle , TDLTBlock theDLTBlock);
+	
+	TBoolean	ExportJPGCurrentScreen	(TFileSpec theFile );
+	TBoolean	ExportJPGNamedView (TFileSpec theFile , TInteger nthPersView , TInteger pixelsX , TInteger pixelsY) ;
+	
+	TString []	GetViewNames (EViewType theViewType);
+	TBoolean []	SelectViews		();
+	
+	TInteger 	CountFavoriteStyles	(TString [] DLTAll);
+}
+
+
+
+extend TSystem
+{
+	TString		GetFavCatPath 		(TCatRef theCatRef); // Gets the File Path a File should have for a particular Catalgoue
+	TString		SetImageLocation	(TString fileName );
+}
+
+TBoolean
+TRoom::Main	()
+{
+	TString []	optionsDLTAll ();
+	TDLTBlock	theDLTBlock;
+	theDLTBlock &= GetDefaultDLTBlock ();
+	
+	TFileSpec 	theFileCat (kSystem.GetFavCatPath ( GetMainCatRef() ));	
+	
+	optionsDLTAll 		:= LoadDLTFromFav (theFileCat);
+	
+	TBoolean [] nthViews ();
+	nthViews := SelectViews ();
+	if (nthViews.Count () > 0) then
+	{
+		TInteger count (1);
+		//OK(TString  (CountFavoriteStyles(optionsDLTAll)));
+		for (count:=1;count<= CountFavoriteStyles(optionsDLTAll) ; count +=1)
+		{
+			//OK(TString (count));
+			RunFavoriteStyleListing (optionsDLTAll , theDLTBlock , count , nthViews);	
+		}
+	}
+	return kTrue;
+}
+
+TBoolean
+TRoom::ExportJPGCurrentScreen	(TFileSpec theFile )
+{
+	//ExportNthNamedViewAsJPEG(krmPers,1,theFile, pixelsX , pixelsY , kFalse , kFalse , 100);
+	 ExportCurrentScreen( theFile, theFile.GetFileName(), krmExportJPEGImage, 100 );
+	return kTrue;
+}
+
+TBoolean
+TRoom::ExportJPGNamedView (TFileSpec theFile , TInteger nthPersView , TInteger pixelsX , TInteger pixelsY)
+{
+	TString tempPath ();
+	TFileSpec tempFile (theFile);
+	
+	tempPath := tempFile.GetFilePath()+ tempFile.GetFileName() +"_" + NameViewsGetNthNameOfType (nthPersView, krmPers) + ".jpg" ;
+	tempFile.SetFullFileName(tempPath);
+	//OK(tempFile.GetFullFileName());
+	ExportNthNamedViewAsJPEG(krmPers,nthPersView,tempFile, pixelsX , pixelsY , kFalse , kFalse , 100);
+	return kTrue;
+}
+
+
+//TBoolean
+//TRoom::ExportJPGNamedView( TInteger nthPersView)
+//{
+//	TDist dViewPosX ();
+//	TDist dViewPosY ();
+//	TDist dViewHeight ();
+//	TDist dFocusPosX ();
+//	TDist dFocusPosY ();
+//	TDist dFocusHeight ();
+//	TInteger nClipPlanePos ();
+//	TFloat lensAngle ();
+//	TString strRenderSettingName ();
+//	TBoolean bDoUpdate ();
+//	TBoolean bPrintInfoBlock ();
+//	TFloat lightingBrightness ();
+//	TBoolean bIncludeUnknownLayers ();
+//	TBoolean bSavedInPrefs  ();
+//	
+//	GetPerspectiveNamedViewSettings(NameViewsGetNthNameOfType (nth , krmPers , dViewPosX , dViewPosY , dViewHeight , dFocusPosX , dFocusPosY , dFocusHeight , nClipPlanePos , lensAngle , strRenderSettingName , bDoUpdate , bPrintInfoBlock , lightingBrightness , bIncludeUnknownLayers , bSavedInPrefs  )
+//	return kTrue;
+//}
+
+TBoolean
+TRoom::RunFavoriteStyleListing(TString [] optionsDLTAll ,TDLTBlock theDLTBlock, TInteger nth, TBoolean [] nthViews)
+{
+	TInteger loop ();
+	TString [] optionsDLTCurrent ();
+	optionsDLTCurrent 	:= LoadSpecificDLT (optionsDLTAll ,nth);
+	TString theImageName (GetDltStyleName(optionsDLTAll , nth));
+
+	LoadDLTStyleIntoPresentation (optionsDLTCurrent,theDLTBlock);
+	
+	//OK(optionsDLTCurrent[1]);
+	DocumentReset();
+	TFileSpec 	theFileImage(kSystem.SetImageLocation(theImageName + ".jpg") );
+	//ExportJPGCurrentScreen(theFileImage);
+	for (loop := 1 ; loop <= NameViewsCountOfType(krmPers) ; loop +=1)
+	{
+		if (nthViews[loop] == kTrue) then ExportJPGNamedView (theFileImage , loop , 1600 , 900);
+	}
+	return kTrue;
+}
+
+TBoolean
+TRoom::LoadDLTStyleIntoPresentation	(TString [] theSpecificDLTStyle , TDLTBlock theDLTBlock)
+{
+	TString [] theDLTId ();
+	TString [] theDLTSelection ();
+	theDLTId 	:= GetStringEntry(theSpecificDLTStyle , 2);
+	theDLTSelection := GetStringEntry(theSpecificDLTStyle , 4);
+	
+	TInteger loop (1);
+	for (loop:=1; loop <= theDLTId.Count() ; loop+=1)
+	{
+		theDLTBlock &= SetDefualtDLTStyle(TInteger (theDLTId[loop])  ,TInteger (theDLTSelection[loop]));
+	}
+	UpdateUnitDLTBlock(theDLTBlock);
+	return kTrue;
+}
+
+
+
+//-------------------------------------------------------------------------------------
+TString []
+TRoom::LoadSpecificDLT	(TString [] DLTAll, TInteger nth)
+{
+	TInteger tempNTh (nth+1);
+	TString [] currentDLTStyleInfo ();
+	TString checkCharacter ("[");
+	TInteger loop ();
+
+	for (loop :=1 ; loop<= DLTAll.Count() ; loop+=1)
+	{
+		TBoolean readInString (kFalse);
+		if (DLTAll[loop].CountDelimitedFields(checkCharacter)==1) then
+		{
+			if (tempNTh == 1) then
+			{
+				readInString := kTrue;
+				
+			}
+			if (tempNTh == 0) then
+			{
+				return currentDLTStyleInfo;
+			}
+		}
+		else
+		{
+			tempNTh := tempNTh -1;
+			//OK(TString (tempNTh));
+		}
+		if (readInString) then
+		{
+			currentDLTStyleInfo.AddItem (DLTAll[loop]);
+			//OK(DLTAll[loop]);
+		}
+	
+	}
+	
+	return currentDLTStyleInfo;
+}
+TString []
+TRoom::CountFavoriteStyles	(TString [] DLTAll)
+{
+	TInteger nth (0);
+	TString checkCharacter ("[");
+	TInteger loop ();
+
+	for (loop :=1 ; loop<= DLTAll.Count() ; loop+=1)
+	{
+		TBoolean readInString (kFalse);
+		if (DLTAll[loop].CountDelimitedFields(checkCharacter)==1) then
+		{
+
+		}
+		else
+		{
+			nth := nth +1;
+		}
+	
+	}
+	return nth;
+}
+
+TString
+TRoom::GetDltStyleName	(TString [] DLTAll, TInteger nth)
+{
+	TInteger tempNth (nth);
+	TString [] currentDLTStyleInfo ();
+	TString checkCharacter ("[");
+	TInteger nthStyleCount ();
+	TInteger loop ();
+
+	for (loop :=1 ; loop<= DLTAll.Count() ; loop+=1)
+	{
+		if (DLTAll[loop].CountDelimitedFields(checkCharacter)==1) then
+		{
+		}
+		else
+		{
+			if (tempNth == 1) then
+			{
+				return DLTAll[loop].StripChar(checkCharacter).StripChar("]");;
+			}
+			else
+			{
+				tempNth := tempNth-1;
+			}
+				
+		}
+
+	
+	}
+	
+	return currentDLTStyleInfo;
+}
+
+
+
+TString []
+TRoom::LoadDLTFromFav	(TFileSpec theFile)
+{
+	TString [] fileInfo ();
+	if (theFile.FileExists() == kFalse) then
+	{
+		OK("Error DLT Favorites Has Not Been Setup");
+		OK(theFile.GetFullFileName());
+		
+	}
+	else
+	{
+		TBoolean fileNotEnded (kTrue);
+		TFile theFilePointer ();
+		theFilePointer.OpenFile(theFile);
+		for (;fileNotEnded == kTrue;) 
+		{
+			TString theLine ();
+			fileNotEnded := theFilePointer.ReadLine(theLine);
+			fileInfo.AddItem(theLine);
+			//OK(theLine)	
+		}
+		
+		theFilePointer.CloseFile();
+	}
+	return fileInfo;
+}
+
+
+TString						
+TSystem::GetFavCatPath	(TCatRef theCatRef)
+{
+	TFileSpec theFilePath ();
+	theFilePath := kSystem.GetUserDocumentsFolder ();
+	TString fileName () ;
+	fileName := TString (theCatRef.GetCatUniqueId()) + ".fav";
+	//OK(theFilePath.GetFullFileName() + fileName);	
+	return theFilePath.GetFullFileName() + fileName;
+}
+
+TString
+TSystem::SetImageLocation	(TString fileName )
+{	
+	TFileSpec theFilePath ();
+	theFilePath := kSystem.GetUserDocumentsFolder ();
+	theFilePath.SetFilePath ( theFilePath.GetFilePath ()+ "images" );
+	//OK(theFilePath.GetFilePath());
+	
+	return theFilePath.GetFullFileName () + fileName;
+}
+
+
+TString []
+TRoom::GetStringEntry (TString [] theDLTString , TInteger position)
+{
+	TString [] theValue ();
+	TInteger loop ();
+	
+	for (loop := 1 ; loop <= theDLTString.Count() ; loop +=1 )
+	{
+	
+		if ( theDLTString[loop].CountDelimitedFields("DLTEntry =") == 2 ) then
+		{
+			TString char ();
+			char.Char(34);
+			theValue.AddItem (theDLTString[loop].NthDelimitedField(char,position));
+		}
+	}
+		return theValue;
+}
+
+TBoolean
+TRoom::UpdateUnitDLTBlock	(TDLTBlock theDLTBlock)
+{
+	if (CountObjectsByDLT(theDLTBlock)==0) then {return kFalse; } // Error Check if there are no units then return an False for Changed
+	
+	TInteger loop ();
+	for (loop:=1;loop<=CountObjectsByDLT(theDLTBlock);loop+=1)
+	{
+		TRoomObj currentObject;
+		currentObject &= GetNthObjectByDLT(loop,theDLTBlock);
+		currentObject.SetDLTBlock (theDLTBlock);
+	}
+	return kTrue; // Returns True if any Units are Changed
+}
+
+TDLTBlock
+TRoom::SetDefualtDLTStyle	(TInteger sectionNo , TInteger optionNo)
+{
+	TDLTBlock defualtDLT ;
+	defualtDLT &= GetDefaultDLTBlock ();
+	defualtDLT.SetDLTEntryID (sectionNo , optionNo);
+	return defualtDLT;
+	
+}
+
+// User Dialog For Views
+TBoolean []
+TRoom::SelectViews ()
+{
+	TUserDialog dlgNamedViews ("Please Selet Named Views");
+	TInteger [] 	windowMain ();
+	TInteger []	windowViewsRow ();
+	TInteger [] 	windowViewsInfo ();
+	TInteger [] 	windowYN ();
+	
+	TString  []	namedViews ();
+	namedViews:= GetViewNames (krmPers);
+	
+	TBoolean	blnExit (kFalse);
+	TInteger selection	();
+	windowMain.AddItem (dlgNamedViews.AddColumnToControlGroup(kuiBaseDialog,kTrue,kTrue));
+	
+	//TInteger loop ();
+	//for (loop:=1;loop<=namedViews.Count();loop+=1)
+	//{
+	//	windowViewsRow.AddItem	(dlgNamedViews.AddRowToControlGroup(windowMain[1],kTrue,kTrue));
+		//windowViewsInfo.AddItem (dlgNamedViews.AddColumnToControlGroup(windowViewsRow[loop],kTrue,kTrue));
+		//windowViewsInfo.AddItem  (dlgNamedViews.AddCheckBox(windowViewsRow[loop],kFalse,namedViews[loop],kTrue));
+		
+	//}
+	windowViewsRow.AddItem	(dlgNamedViews.AddRowToControlGroup(windowMain[1],kTrue,kTrue));
+	TInteger namedViewsHeight (namedViews.Count()*20);
+	if (namedViewsHeight >= 500) then namedViewsHeight:=500;
+	windowViewsInfo.AddItem  (dlgNamedViews.AddCheckBoxList(windowViewsRow[1],kFalse,100 , namedViewsHeight ,namedViews));
+	windowYN.AddItem (dlgNamedViews.AddRowToControlGroup(windowMain[1],kTrue,kTrue));
+	windowYN.AddItem (dlgNamedViews.AddPushButton(windowYN [1], kTrue, "Next") );
+	windowYN.AddItem (dlgNamedViews.AddPushButton(windowYN [1], kTrue, "Cancel") );
+	
+	dlgNamedViews.Open();
+	for (;not blnExit;)
+	{
+		selection := dlgNamedViews.ControlHit();
+		if (selection==windowYN[2]) then
+		{
+			//dlgNamedViews.GetChecked(windowViewsInfo[1],1);
+			TInteger loop ();
+			TBoolean [] viewExported ();
+			TBoolean atLeastOneView (kFalse);
+			for (loop:=1;loop<=namedViews.Count();loop+=1)
+			{
+				if (dlgNamedViews.GetChecked(windowViewsInfo[1],loop)==kTrue) then
+				{
+					viewExported.AddItem(kTrue);
+					atLeastOneView := kTrue;
+				}
+				else
+				{
+					viewExported.AddItem(kFalse);
+				}
+			}
+			if (atLeastOneView) then 
+			{
+				return viewExported;
+			}
+			else
+			{
+				return TBoolean [] ();
+			}
+				
+		}
+		if (selection==windowYN[3]) then
+		{
+		
+			return TBoolean [] ();
+		}
+	
+	}
+	dlgNamedViews.Close();
+	
+	return kTrue;
+}
+
+
+
+TString []
+TRoom::GetViewNames (EViewType theViewType)
+{
+	TInteger loop ();
+	TString [] theViewNames ();
+	for (loop:=1;loop <= NameViewsCountOfType(theViewType);loop+=1)
+	{
+		theViewNames.AddItem (NameViewsGetNthNameOfType(loop,theViewType));
+	}
+	return theViewNames;
+}
+
+// User Dialog for Colours
+
+// Get Certain DLT's Saved and then allow them to be manually selected - With Checkbox

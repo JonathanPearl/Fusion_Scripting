@@ -1,0 +1,174 @@
+extend TRoom
+{
+	TBoolean 	Main			();
+	
+	
+	TDLTBlock	SetDefualtDLTStyle	(TInteger sectionNo , TInteger optionNo);
+	TBoolean	UpdateUnitDLTBlock	(TDLTBlock theDLTBlock);
+	TString		GetDLTFavoriteFilePath	(TCatRef theCatalogueReference);
+	
+
+	TString	 []	GetStringEntry		(TString [] theDLTString , TInteger position);
+	
+	TString []	CurrentStyleOption (TString [] theDLTString, TInteger nthStyle);
+	TString [] 	LoadDLTStyleOptions	(TFileSpec theFile);	
+}
+
+TBoolean
+TRoom::Main ()
+{
+	
+	
+	TString []	strAllDLTOptions ();
+	TString []	currentDLTOption ();
+	TFileSpec theFile (GetDLTFavoriteFilePath (GetMainCatRef()));
+	strAllDLTOptions := LoadDLTStyleOptions (theFile);			// Loads the DLT Options for the Catalogue
+	currentDLTOption := CurrentStyleOption (strAllDLTOptions , 1);				// Loads the Nth DLT Option Set
+	
+
+	
+	TString [] theDLTId ();
+	TString [] theDLTSelection ();
+	theDLTId := GetStringEntry(currentDLTOption , 2);
+	theDLTSelection := GetStringEntry(currentDLTOption , 4);
+	
+	TInteger loop ();
+	TDLTBlock theDLTBlock;
+	theDLTBlock &= GetDefaultDLTBlock ();
+	for (loop := 1; loop <= theDLTId.Count() ; loop+=1)
+	{	
+		theDLTBlock &= SetDefualtDLTStyle(TInteger (theDLTId[loop])  ,TInteger (theDLTSelection[loop]));	
+	}
+	UpdateUnitDLTBlock(theDLTBlock);
+	DocumentReset();
+
+	return kTrue;
+}
+
+
+TString []
+TRoom::GetStringEntry (TString [] theDLTString , TInteger position)
+{
+	TString [] theValue ();
+	TInteger loop ();
+	
+	for (loop := 1 ; loop <= theDLTString.Count() ; loop +=1 )
+	{
+	
+		if ( theDLTString[loop].CountDelimitedFields("DLTEntry =") == 2 ) then
+		{
+			TString char ();
+			char.Char(34);
+			theValue.AddItem (theDLTString[loop].NthDelimitedField(char,position));
+		}
+	}
+		return theValue;
+}
+
+
+TString
+TRoom::GetDLTFavoriteFilePath (TCatRef theCatalogueReference)
+{
+	TFileSpec theFilePath ();
+	theFilePath := kSystem.GetUserDocumentsFolder ();
+	
+	TString fileName () ;
+	fileName := TString (theCatalogueReference.GetCatUniqueId()) + ".fav";
+	
+	return theFilePath.GetFullFileName() + fileName;
+}
+
+
+//---------------------------------------------------------------------------------------
+// Function to Change a DLT Option to be a Specific Option within an id.
+TDLTBlock
+TRoom::SetDefualtDLTStyle	(TInteger sectionNo , TInteger optionNo)
+{
+	TDLTBlock defualtDLT ;
+	defualtDLT &= GetDefaultDLTBlock ();
+	defualtDLT.SetDLTEntryID (sectionNo , optionNo);
+	return defualtDLT;
+	
+}
+
+//----------------------------------------------------------------------------------------
+// Function to Update all units of a DLT Block when their DLT Block is Changed
+TBoolean
+TRoom::UpdateUnitDLTBlock	(TDLTBlock theDLTBlock)
+{
+	if (CountObjectsByDLT(theDLTBlock)==0) then {return kFalse; } // Error Check if there are no units then return an False for Changed
+	
+	TInteger loop ();
+	for (loop:=1;loop<=CountObjectsByDLT(theDLTBlock);loop+=1)
+	{
+		TRoomObj currentObject;
+		currentObject &= GetNthObjectByDLT(loop,theDLTBlock);
+		currentObject.SetDLTBlock (theDLTBlock);
+	}
+	return kTrue; // Returns True if any Units are Changed
+}
+//----------------------------------------------------------------------------------------
+TString [] 
+TRoom::LoadDLTStyleOptions	(TFileSpec theFile)
+{	
+	TString [] fileInfo ();
+	if (theFile.FileExists() == kFalse) then
+	{
+		OK("Error DLT Favorites Has Not Been Setup");
+		OK(theFile.GetFullFileName());
+		
+	}
+	else
+	{
+		TBoolean fileNotEnded (kTrue);
+		TFile theFilePointer ();
+		theFilePointer.OpenFile(theFile);
+		for (;fileNotEnded == kTrue;) 
+		{
+			TString theLine ();
+			fileNotEnded := theFilePointer.ReadLine(theLine);
+			fileInfo.AddItem(theLine);
+			//OK(theLine);
+			
+		}
+		
+		theFilePointer.CloseFile();
+	}
+	return fileInfo;
+}
+//----------------------------------------------------------------------------------------
+
+TString []
+TRoom::CurrentStyleOption (TString [] theDLTString, TInteger nthStyle)
+{
+	TString [] currentDLTStyleInfo ();
+	TString checkCharacter ("[");
+	TInteger nthStyleCount ();
+	TInteger loop ();
+
+	for (loop :=1 ; loop<= theDLTString.Count() ; loop+=1)
+	{
+		TBoolean readInString (kFalse);
+		if (theDLTString[loop].CountDelimitedFields(checkCharacter)==1) then
+		{
+			if (nthStyle == 1) then
+			{
+				readInString := kTrue;
+			}
+			if (nthStyle == 0) then
+			{
+				return currentDLTStyleInfo;
+			}
+		}
+		if (readInString) then
+		{
+			currentDLTStyleInfo.AddItem (theDLTString[loop]);
+		}
+	
+	}
+	
+	return currentDLTStyleInfo;
+}
+
+
+

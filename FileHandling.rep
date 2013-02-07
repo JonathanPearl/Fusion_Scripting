@@ -1,0 +1,16 @@
+// General Basic File Handling Functions
+
+extend TRoom
+{
+	TBoolean	Main	(); // Runs through Main Sections for Testing in Environment
+
+}
+
+TBoolean
+TRoom::Main ()
+{
+	return kTrue;
+}
+
+TString
+TRoom::GetStringFile (TFileSpec theFile , TSTring

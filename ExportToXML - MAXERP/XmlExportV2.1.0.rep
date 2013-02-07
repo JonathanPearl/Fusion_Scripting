@@ -1,0 +1,40 @@
+global TString strIniFileStorageName ("Maxima.ini");
+global TSTring strDataFileOutputTag  ("MAXERP");
+
+extend TRoom
+{
+	TBoolean	Main	();
+}
+
+
+TBoolean
+TRoom::Main	()
+{
+
+	return kTrue;
+}
+
+TBoolean
+TRoom::GetXMLFileInfo ()
+{
+	// 1 - Get the Ini File that contains the data for the Export Path
+	// 2 - Read Ini File & Determine External Command to Process
+	// 3 - Load External File Command to Execute and wait for XML Data to be placed
+	return kTrue;
+}
+
+TBoolean
+TRoom::SetXMLData ()
+{
+	// This is to Match the Old Style
+	// 0 - Room Data
+	// 0 - Catalogue Data
+	// 1 - Load DLT STyle
+	// 		1.1 - Load Unit
+	//			1.1.1 - Get Unit Code
+	//			1.1.2 - Get Unit Name
+	//			1.1.3 - Get Unit (Dimensions)
+	//			1.1.4 - Get Unit Parameters		- (If a unit Parameter is not defualt then Export Parameter)
+	//			1.1.5 - Get Unit Linked Items	- (If there are more than 1 unit Linked Item then Give Unit Linked Item Order Code)
+	//			1.1.6 - Get Unit Material Overrides - (If a Unit has a Material Override Record it)
+}

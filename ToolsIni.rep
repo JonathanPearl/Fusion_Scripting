@@ -1,0 +1,316 @@
+// Tools to be used on INI Files in order to Determine Locations ECt.
+
+extend TRoom
+{
+	TBoolean Main	();
+	TBoolean LoadFile (TString strFileName); // Loads File/Makes a New File if False - then File can't be made
+	TString	FileGet (TFileSpec tfsFile, TString strIdentifier, TString strIdentifier2, TString strSeperator, TString strEnd, TInteger intPos);
+	TBoolean FileGoto (TFile tfFile, TString strIdentifier); //Searches a File for an Identifier (String) and places the cursor there
+	TBoolean FileReadInfo (TFile tfFile,TString strIdentifier,TString strSeperator,TString strEnd,TInteger intPos);
+	TBoolean FileAutoRepair (TFileSpec tfsFile,TString strType, TString strTag, TString strSection, TString strDefaultValue);
+	TBoolean AddToFile (TFileSpec tfsFile, TFileSpec tfsFileNew,TString strLine,TBoolean blnLine, TString strCondition);
+	TBoolean CopyFileTo (TFile tfFile, TFileSpec tfsFileNew, TString strCondition);
+	TBoolean LoadStringSection (TString strString,TString strSeperator ,TInteger intPos);
+	TBoolean PromptErrorMessageConfrimation (TString strFile);
+}
+
+TBoolean
+TRoom::Main ()
+{
+	return kTrue;
+}
+
+
+///
+/// Loads the System Folder - Checks Existence of Files in this folder
+///
+TBoolean
+TRoom::LoadFile (TString strFileName)
+{
+	TBoolean blnSuccess (kTrue);
+	TFileSpec tfsFile ();
+	TString strTemp ();
+
+	tfsFile := kSystem <- GetUserPrefIniFolder ();
+	strTemp := tfsFile <- GetFilePath () + strFileName;
+	tfsFile <- SetFullFileName (strTemp);
+
+	if (tfsFile <- FileExists ()) then
+	{
+		strFileName := strTemp;
+		return blnSuccess;
+	}
+	else
+	{
+		TFile tfFile ();
+		strFileName := strTemp;
+		return tfFile <- NewFile (tfsFile);
+	}
+	return kTrue; 
+}
+
+///
+///
+///
+TBoolean
+TRoom::LoadStringSection (TString strString,TString strSeperator ,TInteger intPos)
+{
+	strString <- DeWhiteSpace ();
+	if (strString <- CountDelimitedFields (strSeperator) >= intPos) then
+	{
+		strString := strString <- NthDelimitedField (strSeperator, intPos) <- DeWhiteSpace ();
+	}
+	else 
+	{
+		strString := strString;
+	}
+	return kTrue;
+}
+
+///
+/// Get the file
+///
+TBoolean
+TRoom::FileGet (TFileSpec tfsFile, TString strIdentifier, TString strIdentifier2, TString strSeperator, TString strEnd, TInteger intPos)
+{
+if (tfsFile <- FileExists ()) then
+	{
+	TFile tfFile ();
+	TString strInfo ();
+	tfFile <- OpenFile (tfsFile);
+	if (FileGoto (tfFile, strIdentifier)) then
+		{
+		if (FileReadInfo (tfFile, strIdentifier2,strSeperator,strEnd,intPos)) then
+			{
+			return kTrue;
+			}
+		}
+		else
+		{
+		tfFile <- WriteString (strIdentifier,kTrue);
+		return kFalse;
+		}
+	
+	}
+return kFalse;
+}
+
+///
+/// Finds a Position in a File 
+///
+TBoolean
+TRoom::FileGoto (TFile tfFile, TString strIdentifier)
+{
+	TString strTemp ();
+	for (;tfFile <- ReadLine (strTemp);)
+	{
+		if (strTemp == strIdentifier) then return kTrue;
+	}
+	return kFalse;
+}
+
+///
+/// Reads Information From a File Seperated by a Field
+///
+TBoolean
+TRoom::FileReadInfo (TFile tfFile,TString strIdentifier,TString strSeperator,TString strEnd,TInteger intPos)
+{
+	TString strTemp ();
+	for (;tfFile <- ReadLine (strTemp);)
+	{
+		TString strTempNew (strTemp);
+		if (strTempNew <- MidString (1,1) <- DeWhiteSpace () <> strEnd <- DeWhiteSpace()) then
+		{	
+			if (intPos == 0) then // If Position 0 Is selected Search All
+			{
+				TInteger intCount (1);
+				for (intCount :=1; intCount <= strTemp <- CountDelimitedFields (strSeperator);intCount +=1)
+				{
+					if (strTempNew <- NthDelimitedField (strSeperator,intCount)<- DeWhiteSpace () == strIdentifier<- DeWhiteSpace ()) then
+					{
+						strIdentifier := strTemp;
+						return kTrue;
+					}
+				}
+			}			
+			else // Search At Position Number
+			{
+				if (strTempNew <- CountDelimitedFields (strSeperator) > intPos) then
+				{
+					if (strTempNew <- NthDelimitedField (strSeperator,intPos) <- DeWhiteSpace () == strIdentifier <- DeWhiteSpace ()) then
+					{
+						strIdentifier := strTemp;;
+						return kTrue;
+					}
+				}
+			}
+		}
+		else
+		{
+		return kFalse;
+		}
+	}
+	return kFalse; // Identifier hasn't been found
+}
+
+TBoolean
+TRoom::FileAutoRepair (TFileSpec tfsFile,TString strType, TString strTag, TString strSection, TString strDefaultValue) // Repairs a Missing Or Incorrect File if X can't be Found Prompts
+{
+	TString strSpeech ();
+	strSpeech <- Char (34);
+	if (strType == "Path") then
+	{
+		TFileSpec tfsFileNew ();
+		tfsFileNew := kSystem <- GetUserDocumentsFolder ();
+		TString strTemp (tfsFileNew <- GetFullFileName ());
+		strTemp := strTemp + "temp.tmp";
+		tfsFileNew <- SetFullFileName (strTemp);
+		strTemp := tfsFile <- GetFullFileName();
+		AddToFile (tfsFile,tfsFileNew,strTag + strSpeech +strDefaultValue +strSpeech,kTrue,strSection);
+		strTemp := tfsFile <- GetFullFileName();
+	}
+
+	if (strType == "File") then 
+	{
+		TFileSpec tfsFileNew ();
+		tfsFileNew := kSystem <- GetUserDocumentsFolder ();
+		TString strTemp (tfsFileNew <- GetFullFileName ());
+		strTemp := strTemp + "temp.tmp";
+		tfsFileNew <- SetFullFileName (strTemp);
+		strTemp := tfsFile <- GetFullFileName();
+		
+		TFileSpec tfsLocation ();
+		tfsLocation <- SetFullFileName (strDefaultValue);
+		tfsLocation <- SetFileExtension(".exe");
+		if (PromptErrorMessageConfrimation (tfsLocation<-GetFileName()+"."+tfsLocation<-GetFileExtension()) == kTrue) then
+		{		
+			if (tfsLocation <- OpenFilePrompt ("Please Locate the File Registered: " + strSection)== kOk) then
+			{
+				strDefaultValue := tfsLocation <- GetFullFileName ();
+			}		
+			AddToFile (tfsFile,tfsFileNew,strTag + strSpeech +strDefaultValue +strSpeech,kTrue,strSection);
+			strTemp := tfsFile <- GetFullFileName();	
+		}
+		else
+		{
+		}
+	}
+	return kTrue;
+}
+
+///
+/// Displays an error message and prompts if the user wishes to find the file or
+/// cancel
+///
+TBoolean
+TRoom::PromptErrorMessageConfrimation (TString strFile)
+{
+	TInteger [] intMain ();
+	TInteger [] intButtonRow ();
+	TBoolean blnExit (kFalse);
+	TInteger intControlHit ();
+	TUserDialog tudDisplay ("Warning Error Located");
+	intMain <- AddItem (tudDisplay <- AddColumnToControlGroup(kuiBaseDialog,kTrue,kTrue));
+	tudDisplay <- AddLabel (intMain[1],kFalse,"");
+	tudDisplay <- AddLabel (intMain[1],kFalse,"                              ***** Warning *****");
+	tudDisplay <- AddLabel (intMain[1],kFalse,"");
+	tudDisplay <- AddLabel (intMain[1],kFalse," There is an invalid setting in the settings file");
+	tudDisplay <- AddLabel (intMain[1],kFalse,"");
+	tudDisplay <- AddLabel (intMain[1],kFalse,"Missing Link to File: "+ strFile);
+	tudDisplay <- AddLabel (intMain[1],kFalse,"");
+	tudDisplay <- AddLabel (intMain[1],kFalse," If you would like to locate this file yourself, please press 'Locate File'");
+	tudDisplay <- AddLabel (intMain[1],kFalse,"");
+	tudDisplay <- AddLabel (intMain[1],kFalse," If you are unsure of where this file is located, please contact your local support for assistance.");
+	tudDisplay <- AddLabel (intMain[1],kFalse,"");
+	intButtonRow <- AddItem (tudDisplay <- AddRowToControlGroup (intMain [1],kTrue,kFalse));
+	intButtonRow <- AddItem (tudDisplay <- AddPushButton (intButtonRow [1], kTrue, "Cancel"));
+	intButtonRow <- AddItem (tudDisplay <- AddPushButton (intButtonRow [1], kTrue, "Locate File"));
+	tudDisplay <- Open ();
+	for (;blnExit == kFalse;)
+		{
+		intControlHit := tudDisplay <- ControlHit ();
+		if (intControlHit == intButtonRow [3]) then return kTrue;
+		if (intControlHit == intButtonRow [2]) then return kFalse;
+		}
+	return kTrue;
+}
+
+///
+/// Adds a Line to a File after a Condition is met and then adds the rest of the File
+///
+TBoolean
+TRoom::AddToFile (TFileSpec tfsFile, TFileSpec tfsFileNew,TString strLine,TBoolean blnLine, TString strCondition)
+{
+	TFile tfFile();
+	TFile tfFileNew();
+
+	if (tfsFile <- FileExists ()) then
+	{
+		tfFile <- OpenFile (tfsFile);
+		for (;tfsFileNew <- FileExists();)
+		{
+			TString strTemp ();
+			TString strExt ();
+			strTemp := tfsFileNew <- GetFileName ();
+			strExt := tfsFileNew <- GetFileExtension ();
+			strTemp := strTemp + "A";
+			tfsFileNew <- SetFileName (strTemp, strExt);
+		}
+	if (tfFileNew <- NewFile (tfsFileNew)) then
+		{
+		tfFileNew <- CloseFile ();
+		if (CopyFileTo (tfFile, tfsFileNew, strCondition)) then
+			{
+			tfFileNew <- OpenFile (tfsFileNew);
+			tfFileNew <- GotoEndOfFile ();
+			tfFileNew <- WriteString (strLine,blnLine);
+			tfFileNew <- CloseFile ();
+			for (;CopyFileTo (tfFile, tfsFileNew, "EOF");)
+				{
+				}
+			TString strTemp ();
+			strTemp := tfsFile <- GetFullFileName ();
+			tfFile <- CloseFile();
+			tfsFile <- Remove ();
+			tfsFileNew <- Rename (strTemp);
+			return kTrue;
+			
+			}
+		}
+		else
+		{
+		OK("Unable To Create Temporary File Holder Please Write Enable: "+ tfsFileNew <- GetFilePath());
+		}
+	}
+	else
+	{
+	OK(tfsFile <- GetFullFileName() + " Doesn't Exist: Pease Check the Path and Name");
+	}
+return kTrue;
+}
+
+///
+/// Copies a File from a Place till the end or a condition is met - If Condition Met then returns True else False at end of File
+///
+TBoolean 
+TRoom::CopyFileTo (TFile tfFile, TFileSpec tfsFileNew, TString strCondition)
+{
+	TString strTemp ();
+	TFile tfNew ();
+	tfNew <- OpenFile (tfsFileNew);
+	tfNew <- GotoEndOfFile ();
+	for (;tfFile <- ReadLine (strTemp);)
+	{
+		if (strTemp <> strCondition) then
+		{
+			tfNew <- WriteString (strTemp,kTrue);
+		}
+		else
+		{
+			tfNew <- WriteString (strTemp,kTrue);
+			tfNew <- CloseFile ();
+		return kTrue;
+		}
+	}
+	return kFalse;
+}

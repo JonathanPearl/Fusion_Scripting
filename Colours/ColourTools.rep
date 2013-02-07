@@ -1,0 +1,23 @@
+extend TCatalogue
+{
+	TBoolean	Main	();
+	TString		GetShaderDescription (TInteger shaderID, EShaderType shaderType); // Gets the Name of a Shader with Type ID ?
+}
+
+TBoolean
+TCatalogue::Main	() // Section where all Tests are Perfomed
+{
+
+	OK( GetShaderName(1,kcgMaterial) );
+	return kTrue;
+}
+
+TString
+TCatalogue::GetShaderDescription (TInteger shaderID, EShaderType shaderType)
+{
+	TString theName ();
+	TShader theShader;
+	theShader &= GetShader(shaderType,TId(shaderID));
+	theName := theShader.GetDescription ();
+	return theName;
+}

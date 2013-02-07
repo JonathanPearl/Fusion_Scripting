@@ -1,0 +1,169 @@
+extend TRoom
+{
+	TBoolean	Main	();
+	TBoolean	GetAllRoomObjects	(); // Loads all the objects through a rooom into scripted sections.
+
+
+	TBoolean	TRoomObjSubItemFound (TRoomObj theObject, TString theOrderCodeMatch);
+	TBoolean	TRoomObjSubItemHeight	(TRoomObj theObject, TString theOrderCodeMatch);
+
+	TString		TRoomObjSetSeenSideOption	(TRoomObj theObject);
+
+	TBoolean	TRoomObjDoNotUseDepth		(TRoomObj theObject);
+	TBoolean	TRoomObjSetSeenSideHeight	(TRoomObj theObject);
+}
+
+TBoolean
+TRoom::Main	()
+{
+	GetAllRoomObjects();
+	return kTrue;
+}
+
+TBoolean
+TRoom::TRoomObjSubItemFound (TRoomObj theObject, TString theOrderCodeMatch)
+{
+	TInteger theSubItemsCount ();
+	TInteger loop ();
+	theSubItemsCount:=theObject.CountSubItems(); // Detect if Linked Objects Exist
+	for (loop:=1;loop<=theSubItemsCount;loop+=1)
+	{
+		TRoomObj theSubObject;
+		theSubObject &= theObject.GetNthSubItem(loop);
+		if(theSubObject.GetUnitName() == theOrderCodeMatch) then
+		{
+			return kTrue;
+		}
+	}
+
+	return kFalse;
+}
+
+TBoolean
+TRoom::TRoomObjSubItemHeight(TRoomObj theObject , TString theOrderCodeMatch)
+{
+	TInteger theSubItemsCount ();
+	TInteger loop ();
+	TBoolean	setDepth (kFalse);
+	setDepth:= TRoomObjDoNotUseDepth(theObject);
+	theSubItemsCount := theObject.CountSubItems ();
+	if (theSubItemsCount >0) then
+	{
+		for (loop:=1;loop<=theSubItemsCount;loop+=1)
+		{
+			TRoomObj theSubObject;
+			theSubObject &= theObject.GetNthSubItem(loop);
+
+			if (theSubObject.GetOrderCode() == theOrderCodeMatch) then
+			{
+				TDist dstX ();
+				TDist dstY ();
+				TDist dstZ ();
+				TObjectDimensions theObjectDims;
+				TObjectDimensions theSubObjectDims;
+				theObjectDims := theObject.GetDimensions();
+				theSubObjectDims := theSubObject.GetDimensions ();
+				if (setDepth==kFalse) then
+				{
+					theObjectDims.GetGraphic(TDist(),TDist(),dstZ);
+					theSubObjectDims.GetGraphic(dstX,dstY,TDist());
+					theSubObjectDims.SetGraphic(dstX,dstY,dstZ);
+				}
+				else
+				{
+					theObjectDims.GetGraphic(TDist(),dstY,dstZ);
+					theSubObjectDims.GetGraphic(TDist(),dstX,TDist());
+					theSubObjectDims.SetGraphic(dstY,dstX,dstZ);
+				}
+
+				theSubObject.SetDimensions(theSubObjectDims);
+			}
+
+		}
+	}
+	return kTrue;
+}
+
+TBoolean
+TRoom::TRoomObjDoNotUseDepth		(TRoomObj theObject)
+{
+	TString [] restrictedCodes ();
+	restrictedCodes.AddItem("FC90");
+	restrictedCodes.AddItem("WC90");
+	TInteger loop (1);
+	for (loop:=1;loop<= restrictedCodes.Count();loop+=1)
+	{
+		if (theObject.GetOrderCode () == restrictedCodes[loop]) then
+		{
+			return kFalse;
+		}
+	}
+	return kTrue;
+}
+
+TString
+TRoom::TRoomObjSetSeenSideOption(TRoomObj theObject)
+{
+	if (theObject.CountSubItems() >0) then
+	{
+		if (TRoomObjSubItemFound(theObject, "Exposed Side Left" )==kTrue) then
+		{
+			if (TRoomObjSubItemFound(theObject,"Exposed Side Right")==kTrue) then
+			{
+				return ("Both");
+			}
+			else
+			{
+				return (" Left");
+			}
+		}
+		else
+		{
+			if (TRoomObjSubItemFound(theObject, "Exposed Side Right")==kTrue) then
+			{
+				return (" Right");
+			}
+		}
+	}
+	return ("  None");
+}
+
+TBoolean
+TRoom::TRoomObjSetSeenSideHeight(TRoomObj theObject)
+{
+	if (theObject.CountSubItems() >0) then
+	{
+		if (TRoomObjSubItemHeight(theObject, "Exposed Side Left" )==kTrue) then
+		{
+			if (TRoomObjSubItemHeight(theObject,"Exposed Side Right")==kTrue) then
+			{
+				return (kTrue);
+			}
+			else
+			{
+				return (kTrue);
+			}
+		}
+		else
+		{
+			if (TRoomObjSubItemHeight(theObject, "Exposed Side Right")==kTrue) then
+			{
+				return (kTrue);
+			}
+		}
+	}
+	return (kFalse);
+}
+
+TBoolean
+TRoom::GetAllRoomObjects()
+{
+	TInteger loop();
+	for (loop:=1;loop<= CountObjects();loop+=1)
+	{
+		TRoomObj theObject;
+		theObject &=GetNthObject(loop);
+		TRoomObjSetSeenSideHeight(theObject);
+	}
+	return kTrue;
+}

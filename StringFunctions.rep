@@ -1,0 +1,31 @@
+extend TRoom
+{
+	TBoolean	Main	();
+	TString		ReplaceChar (TString theString, TString theChar, TString theReplacementChar );
+}
+
+
+// Testing Functions
+TBoolean
+TRoom::Main	()
+{
+	TString originalString ("Testing! No Space");
+	TString space ();
+	space.Char(32);
+	OK("A"+space+"B");
+	OK( ReplaceChar (originalString , space  , "%20"));
+	return kTrue;
+}
+
+TString
+TRoom::ReplaceChar (TString theString, TString theChar, TString theReplacementChar )
+{
+	TString theNewString ();
+	TInteger loop (1);
+	for(loop:=1 ; loop <= theString.CountDelimitedFields(theChar) ;loop+=1)
+	{
+		TString tempString (theString.NthDelimitedField(theChar,loop));
+		theNewString := theNewString + tempString.StripChar(theChar);
+	}
+	return theNewString;
+}
