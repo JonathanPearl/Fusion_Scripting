@@ -20,7 +20,7 @@ extend TRoomObj
 	
 	TBoolean	AdjustHeightToMatchUnit		(TRoomObj parentObject);
 	TBoolean	AdjustDepthToMatchUnit		(TRoomObj parentObject);
-	TBoolean	AdjustRoomObjectForOrientation	(TDist YValue, TDist originalYValue);
+	TBoolean	AdjustRoomObjectForOrientation	(TDist YValue, TDist originalYValue, TFloat OrientationZ);
 }
 
 TBoolean
@@ -199,15 +199,31 @@ TRoomObj::AdjustHeightToMatchUnit(TRoomObj parentObject)
 }
 
 TBoolean
-TRoomObj::AdjustRoomObjectForOrientation (TDist YValue, TDist originalYValue)
+TRoomObj::AdjustRoomObjectForOrientation (TDist YValue, TDist originalYValue, TFloat OrientationZ)
 {
 
 	TDist posX ();
 	TDist posY ();
 	TDist posZ ();
+
+	TFloat newAdjustmentX (OrientationZ.Cos());
+	TFloat newAdjustmentY (OrientationZ.Sin());
+	
+	TDist YAdjustment ();
+	TDist XAdjustment ();
+
+		XAdjustment:=(YValue-originalYValue)*TFloat(-newAdjustmentX);
+		YAdjustment:=(YValue-originalYValue)*TFloat(-newAdjustmentY);
+		//OK("Y" + TString(newAdjustmentY) + " " + TString(OrientationZ));
+		//OK("X" + TString(newAdjustmentX) + " " + TString(OrientationZ));
+		//YAdjustment := YValue-originalYValue;
+	
+	
 	GetObjectPos(posX,posY,posZ);
 	
-	SetObjectPos(posX,posY+(YValue-originalYValue),posZ);
+	
+	
+	SetObjectPos(posX+XAdjustment,posY+YAdjustment,posZ);
 	return kTrue;
 }
 
@@ -228,6 +244,7 @@ TRoomObj::AdjustDepthToMatchUnit(TRoomObj parentObject)
 	nativeDims.SetGraphic (dstX,dstY,dstZ);
 	
 	TFloat OrientationZ ();
+	
 	TFloat ParentOrientationZ ();
 	parentObject.GetObjectOrientation (TFloat(),TFloat(),ParentOrientationZ);
 	GetObjectOrientation (TFloat(),TFloat(),OrientationZ);
@@ -237,7 +254,8 @@ TRoomObj::AdjustDepthToMatchUnit(TRoomObj parentObject)
 	}
 	if (ParentOrientationZ-OrientationZ==TFloat(-270)) then
 	{
-		AdjustRoomObjectForOrientation(dstX,originalDepth);
+		AdjustRoomObjectForOrientation(dstX,originalDepth,OrientationZ);
+		
 	}
 	
 	SetDimensions(nativeDims);
