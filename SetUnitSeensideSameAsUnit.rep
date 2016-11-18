@@ -7,10 +7,20 @@ extend TRoom
 	TBoolean	TRoomObjSubItemFound (TRoomObj theObject, TString theOrderCodeMatch);
 	TBoolean	TRoomObjSubItemHeight	(TRoomObj theObject, TString theOrderCodeMatch);
 
-	TString		TRoomObjSetSeenSideOption	(TRoomObj theObject);
+	TString		TRoomObjSetSeenSideOption	(TRoomObj theObject); // Not Being Used
 
 	TBoolean	TRoomObjDoNotUseDepth		(TRoomObj theObject);
 	TBoolean	TRoomObjSetSeenSideHeight	(TRoomObj theObject);
+}
+
+extend TRoomObj
+{
+	TBoolean 	CheckForSubItem			(TString OrderCode);
+	TRoomObj 	GetSubItem			(TString OrderCode);
+	
+	TBoolean	AdjustHeightToMatchUnit		(TRoomObj parentObject);
+	TBoolean	AdjustDepthToMatchUnit		(TRoomObj parentObject);
+	TBoolean	AdjustRoomObjectForOrientation	(TDist YValue, TDist originalYValue);
 }
 
 TBoolean
@@ -101,32 +111,8 @@ TRoom::TRoomObjDoNotUseDepth		(TRoomObj theObject)
 	return kTrue;
 }
 
-TString
-TRoom::TRoomObjSetSeenSideOption(TRoomObj theObject)
-{
-	if (theObject.CountSubItems() >0) then
-	{
-		if (TRoomObjSubItemFound(theObject, "Exposed Side Left" )==kTrue) then
-		{
-			if (TRoomObjSubItemFound(theObject,"Exposed Side Right")==kTrue) then
-			{
-				return ("Both");
-			}
-			else
-			{
-				return (" Left");
-			}
-		}
-		else
-		{
-			if (TRoomObjSubItemFound(theObject, "Exposed Side Right")==kTrue) then
-			{
-				return (" Right");
-			}
-		}
-	}
-	return ("  None");
-}
+
+
 
 TBoolean
 TRoom::TRoomObjSetSeenSideHeight(TRoomObj theObject)
@@ -155,6 +141,105 @@ TRoom::TRoomObjSetSeenSideHeight(TRoomObj theObject)
 	return (kFalse);
 }
 
+TRoomObj
+TRoomObj::CheckForSubItem(TString orderCode)
+{
+	if(CountSubItems()>0) then
+	{
+		// Loop Through all Sub Items and Check Order Code
+		TInteger theSubItemsCount();
+		TInteger loop ();
+		theSubItemsCount := CountSubItems ();
+		for (loop:=1;loop<=theSubItemsCount;loop+=1)
+		{
+			TRoomObj theSubObject;
+			theSubObject &= GetNthSubItem(loop);
+			if (theSubObject.GetOrderCode() == orderCode) then return kTrue;	
+		}
+	}
+	return kFalse;
+}
+
+TRoomObj
+TRoomObj::GetSubItem(TString orderCode)
+{
+	if(CountSubItems()>0) then
+	{
+		// Loop Through all Sub Items and Check Order Code
+		TInteger theSubItemsCount();
+		TInteger loop ();
+		theSubItemsCount := CountSubItems ();
+		for (loop:=1;loop<=theSubItemsCount;loop+=1)
+		{
+			TRoomObj theSubObject;
+			theSubObject &= GetNthSubItem(loop);
+			if (theSubObject.GetOrderCode() == orderCode) then return theSubObject;	
+		}
+	}
+	return kFalse;
+}
+
+TBoolean
+TRoomObj::AdjustHeightToMatchUnit(TRoomObj parentObject)
+{
+	TDist dstX ();
+	TDist dstY ();
+	TDist dstZ ();
+	TObjectDimensions parentDims;
+	TObjectDimensions nativeDims;
+	nativeDims := GetDimensions();
+	parentDims := parentObject.GetDimensions();
+	
+	parentDims.GetGraphic(TDist(),TDist(),dstZ);
+	nativeDims.GetGraphic (dstX,dstY,TDist());
+	nativeDims.SetGraphic (dstX,dstY,dstZ);
+	
+	SetDimensions(nativeDims);
+	return kTrue;
+}
+
+TBoolean
+TRoomObj::AdjustRoomObjectForOrientation (TDist YValue, TDist originalYValue)
+{
+
+	TDist posX ();
+	TDist posY ();
+	TDist posZ ();
+	GetObjectPos(posX,posY,posZ);
+	
+	SetObjectPos(posX,posY+(YValue-originalYValue),posZ);
+	return kTrue;
+}
+
+TBoolean
+TRoomObj::AdjustDepthToMatchUnit(TRoomObj parentObject)
+{
+	TDist dstX ();
+	TDist dstY ();
+	TDist dstZ ();
+	TDist originalDepth ();
+	TObjectDimensions parentDims;
+	TObjectDimensions nativeDims;
+	nativeDims := GetDimensions();
+	parentDims := parentObject.GetDimensions();
+	
+	parentDims.GetGraphic(TDist(),dstX,TDist());
+	nativeDims.GetGraphic (originalDepth,dstY,dstZ);
+	nativeDims.SetGraphic (dstX,dstY,dstZ);
+	
+	TFloat OrientationZ ();
+	GetObjectOrientation (TFloat(),TFloat(),OrientationZ);
+	if (OrientationZ==TFloat(270)) then
+	{
+		AdjustRoomObjectForOrientation(dstX,originalDepth);
+	}
+	
+	SetDimensions(nativeDims);
+	
+	/// Hey If Orienation Z is 270 then We need to Adjsut the Units Position
+	return kTrue;
+}
+
 TBoolean
 TRoom::GetAllRoomObjects()
 {
@@ -163,7 +248,54 @@ TRoom::GetAllRoomObjects()
 	{
 		TRoomObj theObject;
 		theObject &=GetNthObject(loop);
-		TRoomObjSetSeenSideHeight(theObject);
+		if (theObject.CheckForSubItem("Exposed Side Left")) then
+		{
+			TRoomObj sideExposed;
+			sideExposed &= theObject.GetSubItem("Exposed Side Left");
+			sideExposed.AdjustHeightToMatchUnit(theObject);
+			sideExposed.AdjustDepthToMatchUnit(theObject);
+		}
+		if (theObject.CheckForSubItem("Exposed Side Right")) then
+		{
+			TRoomObj sideExposed;
+			sideExposed &= theObject.GetSubItem("Exposed Side Right");
+			sideExposed.AdjustHeightToMatchUnit(theObject);
+			sideExposed.AdjustDepthToMatchUnit(theObject);
+		}
+		
+		
+		
+		
+		
 	}
 	return kTrue;
+}
+
+
+//For Debugging Purposes
+TString
+TRoom::TRoomObjSetSeenSideOption(TRoomObj theObject)
+{
+	if (theObject.CountSubItems() >0) then
+	{
+		if (TRoomObjSubItemFound(theObject, "Exposed Side Left" )==kTrue) then
+		{
+			if (TRoomObjSubItemFound(theObject,"Exposed Side Right")==kTrue) then
+			{
+				return ("Both");
+			}
+			else
+			{
+				return (" Left");
+			}
+		}
+		else
+		{
+			if (TRoomObjSubItemFound(theObject, "Exposed Side Right")==kTrue) then
+			{
+				return (" Right");
+			}
+		}
+	}
+	return ("  None");
 }
