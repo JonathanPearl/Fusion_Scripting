@@ -228,8 +228,14 @@ TRoomObj::AdjustDepthToMatchUnit(TRoomObj parentObject)
 	nativeDims.SetGraphic (dstX,dstY,dstZ);
 	
 	TFloat OrientationZ ();
+	TFloat ParentOrientationZ ();
+	parentObject.GetObjectOrientation (TFloat(),TFloat(),ParentOrientationZ);
 	GetObjectOrientation (TFloat(),TFloat(),OrientationZ);
-	if (OrientationZ==TFloat(270)) then
+	if (OrientationZ < TFloat(270)) then
+	{
+		OrientationZ := OrientationZ+TFloat(360);
+	}
+	if (ParentOrientationZ-OrientationZ==TFloat(-270)) then
 	{
 		AdjustRoomObjectForOrientation(dstX,originalDepth);
 	}
@@ -260,6 +266,7 @@ TRoom::GetAllRoomObjects()
 			TRoomObj sideExposed;
 			sideExposed &= theObject.GetSubItem("Exposed Side Right");
 			sideExposed.AdjustHeightToMatchUnit(theObject);
+			
 			sideExposed.AdjustDepthToMatchUnit(theObject);
 		}
 		
