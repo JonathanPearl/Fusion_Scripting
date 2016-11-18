@@ -208,6 +208,8 @@ TRoomObj::AdjustRoomObjectForOrientation (TDist YValue, TDist originalYValue, TF
 
 	TFloat newAdjustmentX (OrientationZ.Cos());
 	TFloat newAdjustmentY (OrientationZ.Sin());
+	//if (newAdjustmentY <TFloat(0)) then newAdjustmentX:= newAdjustmentX*TFloat(-1);
+	//if (newAdjustmentY <TFloat(0)) then newAdjustmentY:= newAdjustmentY*TFloat(-1);
 	
 	TDist YAdjustment ();
 	TDist XAdjustment ();
@@ -248,15 +250,14 @@ TRoomObj::AdjustDepthToMatchUnit(TRoomObj parentObject)
 	TFloat ParentOrientationZ ();
 	parentObject.GetObjectOrientation (TFloat(),TFloat(),ParentOrientationZ);
 	GetObjectOrientation (TFloat(),TFloat(),OrientationZ);
-	if (OrientationZ < TFloat(270)) then
-	{
-		OrientationZ := OrientationZ+TFloat(360);
-	}
-	if (ParentOrientationZ-OrientationZ==TFloat(-270)) then
+	TFloat NewOrientationZ (OrientationZ);
+	TFloat AdjustedParentOrientation (ParentOrientationZ+TFloat(270));
+	if(AdjustedParentOrientation>=TFloat(360)) then AdjustedParentOrientation := AdjustedParentOrientation - TFloat(360);
+	if(TInteger(AdjustedParentOrientation) == TInteger(OrientationZ)) then
 	{
 		AdjustRoomObjectForOrientation(dstX,originalDepth,OrientationZ);
-		
 	}
+	
 	
 	SetDimensions(nativeDims);
 	
