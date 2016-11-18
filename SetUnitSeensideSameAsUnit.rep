@@ -165,11 +165,8 @@ TRoomObj::GetSubItem(TString orderCode)
 {
 	if(CountSubItems()>0) then
 	{
-		// Loop Through all Sub Items and Check Order Code
-		TInteger theSubItemsCount();
 		TInteger loop ();
-		theSubItemsCount := CountSubItems ();
-		for (loop:=1;loop<=theSubItemsCount;loop+=1)
+		for (loop:=1;loop<=CountSubItems();loop+=1)
 		{
 			TRoomObj theSubObject;
 			theSubObject &= GetNthSubItem(loop);
@@ -205,23 +202,16 @@ TRoomObj::AdjustRoomObjectForOrientation (TDist YValue, TDist originalYValue, TF
 	TDist posX ();
 	TDist posY ();
 	TDist posZ ();
+	GetObjectPos(posX,posY,posZ);
 
 	TFloat newAdjustmentX (OrientationZ.Cos());
 	TFloat newAdjustmentY (OrientationZ.Sin());
-	//if (newAdjustmentY <TFloat(0)) then newAdjustmentX:= newAdjustmentX*TFloat(-1);
-	//if (newAdjustmentY <TFloat(0)) then newAdjustmentY:= newAdjustmentY*TFloat(-1);
 	
 	TDist YAdjustment ();
 	TDist XAdjustment ();
+	XAdjustment:=(YValue-originalYValue)*TFloat(-newAdjustmentX);
+	YAdjustment:=(YValue-originalYValue)*TFloat(-newAdjustmentY);
 
-		XAdjustment:=(YValue-originalYValue)*TFloat(-newAdjustmentX);
-		YAdjustment:=(YValue-originalYValue)*TFloat(-newAdjustmentY);
-		//OK("Y" + TString(newAdjustmentY) + " " + TString(OrientationZ));
-		//OK("X" + TString(newAdjustmentX) + " " + TString(OrientationZ));
-		//YAdjustment := YValue-originalYValue;
-	
-	
-	GetObjectPos(posX,posY,posZ);
 	
 	
 	
